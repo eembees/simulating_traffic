@@ -29,23 +29,22 @@ and from the last slot to the first slot also with probability $p$, not $\\alpha
 TASEP_PBC_string = """
 For this case, we know a couple of things. 
 \n
-The first thing, is that the average flux, $J$, should equal the following, for low densities:
+The first thing, is that the average flux, $J$, should equal the following:
 \n
 $J = p \\rho(1-\\rho)$\n
-This is because the flux at any point is equal to the hopping rate, times the probability that a site is filled, 
+This is because the flux at any point is proportional to the hopping rate $p$, 
+times the probability that a site is filled, which on average is the density $\\rho$, 
 and the probability that the next site is empty $(1-\\rho)$.
 \n
 In the figure below, we calculate the empirical flux as well. 
 If this doesn't fit with the data, there must be something afoot - usually there is an issue with the number of slots.
 """
-CAR_URL = "figs/car.png"
-
-
-# CAR_URL  ="https://vega.github.io/vega-datasets/data/ffox.png"
+# CAR_URL = "figs/car.png"
+CAR_URL ="https://vega.github.io/vega-datasets/data/ffox.png"
 
 
 def plot_periodic(
-        fluxes, const_L: int, const_stepProb: float, const_density: float, df: pd.DataFrame,
+    fluxes, const_L: int, const_stepProb: float, const_density: float, df: pd.DataFrame,
 ):
     J, Jmean, Jstd, J_theoretical = fluxes
     fig = plt.Figure(figsize=(7, 8))
@@ -100,19 +99,19 @@ def calc_flux_empirical(position_time_array):
     #     Jmean = J.mean()
     #     Jstd = J.std()
     # else:  # only use last 50% to guess SS
-    Jmean = J[-int(len(J) // 2):].mean()
-    Jstd = J[-int(len(J) // 2):].std()
+    Jmean = J[-int(len(J) // 2) :].mean()
+    Jstd = J[-int(len(J) // 2) :].std()
 
     return J, Jmean, Jstd
 
 
 @st.cache(allow_output_mutation=True)
 def simulate_periodic(
-        const_nSteps: int,
-        const_L: int,
-        const_density: float,
-        const_stepProb: float,
-        bool_initrandom: bool,
+    const_nSteps: int,
+    const_L: int,
+    const_density: float,
+    const_stepProb: float,
+    bool_initrandom: bool,
 ):
     # Initialize the array for storing all positions over time
 
@@ -133,12 +132,62 @@ def simulate_periodic(
         for j in move_inds:
 
             if (
-                    N_curr[j] == 1
-                    and N_curr[(j + 1) % (const_L - 1)] == 0
-                    and np.random.uniform() > const_stepProb
+                N_curr[j] == 1
+                and N_curr[(j + 1) % (const_L - 1)] == 0
+                and np.random.uniform() < const_stepProb
             ):
                 N_curr[j] = 0
                 N_curr[(j + 1) % (const_L - 1)] = 1
+
+        position_time_array[i] = N_curr
+
+    (timepoints, positions) = np.nonzero(position_time_array)
+    fluxes_empirical = calc_flux_empirical(position_time_array)
+
+    return pd.DataFrame({"time": timepoints, "position": positions}), fluxes_empirical
+
+
+@st.cache(allow_output_mutation=True)
+def simulate_open(
+    const_nSteps: int,
+    const_L: int,
+    const_density: float,
+    const_stepProb: float,
+    bool_initrandom: bool,
+    const_entryProb: float,
+    const_exitProb: float,
+):
+    # Initialize the array for storing all positions over time
+
+    position_time_array = np.zeros(
+        shape=(const_nSteps, const_L)
+    )  # now we access it as [time, position]
+
+    # Populate the array at time 0
+    if bool_initrandom:  # Randomly populate
+        position_time_array[0] = np.random.binomial(n=1, p=const_density, size=const_L)
+    else:
+        position_time_array[0][: int(const_L * const_density)] = 1
+
+    for i in range(1, const_nSteps):
+        N_curr = np.copy(position_time_array[i - 1])
+        move_inds = np.random.choice(np.arange(const_L), size=const_L, replace=True)
+
+        for j in move_inds:
+            if j == const_L - 1:
+                if N_curr[j] == 1 and np.random.uniform() < const_exitProb:
+                    N_curr[j] = 0
+            else:
+                if j == 0 and N_curr[j] == 0 and np.random.uniform() < const_entryProb:
+                    N_curr[j] = 1
+
+                if (
+                    N_curr[j] == 1
+                    and N_curr[(j + 1) % (const_L - 1)] == 0
+                    and np.random.uniform() < const_stepProb
+                ):
+                    N_curr[j] = 0
+                    N_curr[j + 1] = 1
 
         position_time_array[i] = N_curr
 
@@ -159,15 +208,21 @@ def write():
     # Setting parameters
     const_nSteps = st.sidebar.slider("Number of steps to simulate", 10, 2000, 100, 10)
     const_L = st.sidebar.slider("Number of slots", 5, 50, 10)
-    const_density = st.sidebar.slider("Initial Density", 0.01, 0.99, 0.5, 0.05)
-    const_stepProb = st.sidebar.slider("Step Probability", 0.01, 0.99, 0.5, 0.05)
+    const_density = st.sidebar.slider("Initial Density", 0.0, 0.95, 0.5, 0.05)
+    const_stepProb = st.sidebar.slider("Step Probability", 0.05, 1.0, 0.5, 0.05)
+    const_entryProb = st.sidebar.slider(
+        "Entry Probability (alpha)", 0.05, 0.95, 0.5, 0.05
+    )
+    const_exitProb = st.sidebar.slider(
+        "Exit Probability (beta)", 0.05, 0.95, 0.5, 0.05
+    )
     bool_periodic_boundary = st.sidebar.checkbox("Periodic Boundary Condition?", True)
     bool_initrandom = st.sidebar.checkbox("Random initialization?", True)
 
     if st.button("Run simulation?"):
         if bool_periodic_boundary:
             st.subheader("Simulation with Periodic Boundary Condition.")
-            st.write()
+            st.write(TASEP_PBC_string)
             df, (J, Jmean, Jstd) = simulate_periodic(
                 const_L=const_L,
                 const_stepProb=const_stepProb,
@@ -176,49 +231,85 @@ def write():
                 bool_initrandom=bool_initrandom,
             )
             J_theoretical = const_stepProb * const_density * (1 - const_density)
-            fluxes = J, Jmean, Jstd, J_theoretical
-            df_plot = df.copy()
-            df_plot["img"] = [CAR_URL] * len(df_plot)
-            df_plot["car"] = [1] * len(df_plot)
 
-            slider = alt.binding_range(min=0, max=const_nSteps - 1, step=1)
-            select_time = alt.selection_single(
-                name="time", fields=["time"], bind=slider, init={"time": 1}
-            )
+            #
+            # fig, axes = plot_periodic(
+            #     fluxes=fluxes,
+            #     const_L=const_L,
+            #     const_stepProb=const_stepProb,
+            #     const_density=const_density,
+            #     df=df,
+            # )
 
-            c = (
-                alt.Chart(df_plot)
-                    .properties(height=100)
-                    # .mark_image(width=15, height=15) # TODO: get the image to work to get a car!
-                    .mark_circle(size=200)
-                    .encode(
-                    x=alt.X(
-                        "position",
-                        type="quantitative",
-                        scale=alt.Scale(domain=[0, const_L]),
-                    ),
-                    y=alt.Y(field="car", type="ordinal"),
-                    url="img",
-                )
-                    .add_selection(select_time)
-                    .transform_filter(select_time)
-            )
-            st.write(
-                "Now, try and play with the slider representing the timepoint, to see the cars move in time!"
-            )
-            st.altair_chart(c, use_container_width=True)
-
-            fig, axes = plot_periodic(
-                fluxes=fluxes,
+        else:
+            st.subheader("Simulation with Open Boundary Condition.")
+            df, (J, Jmean, Jstd) = simulate_open(
                 const_L=const_L,
                 const_stepProb=const_stepProb,
+                const_nSteps=const_nSteps,
                 const_density=const_density,
-                df=df,
+                bool_initrandom=bool_initrandom,
+                const_entryProb=const_entryProb,
+                const_exitProb=const_exitProb,
             )
+            J_theoretical = (
+                const_stepProb * const_density * (1 - const_density)
+            )  # TODO check this with exam answer
 
-            st.write("Here is a summary figure as well!")
-            st.pyplot(fig)
 
-            st.write(f"Here we have a an average flux of $J_{{emp}}={Jmean:.2f}\\pm{Jstd:.3f}$, compared to $J_{{theo}}={J_theoretical:.2f}$")
-        else:
-            st.write("Nothing to see here...")
+            # fig, axes = plot_periodic(
+            #     fluxes=fluxes,
+            #     const_L=const_L,
+            #     const_stepProb=const_stepProb,
+            #     const_density=const_density,
+            #     df=df,
+            # )
+
+        fluxes = J, Jmean, Jstd, J_theoretical
+        df_plot = df.copy()
+        df_plot["img"] = ["car"] * len(df_plot)
+        df_plot["car"] = [1] * len(df_plot)
+
+        slider = alt.binding_range(min=0, max=const_nSteps - 1, step=1)
+        select_time = alt.selection_single(
+            name="time", fields=["time"], bind=slider, init={"time": 1}
+        )
+        c = (
+            alt.Chart(df_plot)
+            .properties(height=100)
+            # .mark_image(width=25, height=25) # TODO: get the image to work to get a car!
+            # .mark_circle(size=200)
+            .mark_text(size=30, baseline="middle")
+            .encode(
+                alt.X(
+                    "position",
+                    type="quantitative",
+                    scale=alt.Scale(domain=[0, const_L]),
+                ),
+                alt.Y(field="car", type="ordinal"),
+                alt.Text("emoji:N"),
+            ).transform_calculate(emoji="{'car':'🚗'}[datum.img]")
+            .add_selection(select_time)
+            .transform_filter(select_time)
+        )
+        st.write(
+            "Now, try and play with the slider representing the timepoint, to see the cars move in time!"
+        )
+        st.altair_chart(c, use_container_width=True)
+
+        fig, axes = plot_periodic(
+            fluxes=fluxes,
+            const_L=const_L,
+            const_stepProb=const_stepProb,
+            const_density=const_density,
+            df=df,
+        )
+
+        st.write("Here is a summary figure as well!")
+        st.pyplot(fig)
+
+        st.write(
+            f"Here we have a an average flux of "
+            f"$J_{{emp}}={Jmean:.2f}\\pm{Jstd:.3f}$, "
+            f"compared to $J_{{theo}}={J_theoretical:.2f}$"
+        )
