@@ -4,4 +4,4 @@ Hope this will be able to help someone understand the traffic models better!
 
 I will begin by simulating some models for traffic flow on single lane highways and update it as I go along, to perhaps add intersections and whatnot. 
 ## Usage 
-Go to the website for the app and click the sidebar to use the different models.
+Go to the [website](https://polar-atoll-17058.herokuapp.com/) for the app and click the sidebar to use the different models.
