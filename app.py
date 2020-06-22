@@ -3,6 +3,7 @@ import streamlit as st
 import src.pages.about
 import src.pages.home
 import src.pages.tasep
+
 # import src.pages.nasch
 import src.utils
 
@@ -26,7 +27,6 @@ def main() -> None:
     curr_page = PAGES[selection]
     with st.spinner(f"Loading {selection} ..."):
         src.utils.write_page(page=curr_page)
-
 
 
 if __name__ == "__main__":

@@ -40,11 +40,15 @@ In the figure below, we calculate the empirical flux as well.
 If this doesn't fit with the data, there must be something afoot - usually there is an issue with the number of slots.
 """
 # CAR_URL = "figs/car.png"
-CAR_URL ="https://vega.github.io/vega-datasets/data/ffox.png"
+CAR_URL = "https://vega.github.io/vega-datasets/data/ffox.png"
 
 
 def plot_periodic(
-    fluxes, const_L: int, const_stepProb: float, const_density: float, df: pd.DataFrame,
+    fluxes,
+    const_L: int,
+    const_stepProb: float,
+    const_density: float,
+    df: pd.DataFrame,
 ):
     J, Jmean, Jstd, J_theoretical = fluxes
     fig = plt.Figure(figsize=(7, 8))
@@ -61,7 +65,10 @@ def plot_periodic(
         label=rf"SS at $\operatorname{{E}}[J] = {Jmean:.2f}$",
     )
     ax_flux.axhspan(
-        Jmean - Jstd / 2, Jmean + Jstd / 2, alpha=0.2, color="xkcd:pastel orange",
+        Jmean - Jstd / 2,
+        Jmean + Jstd / 2,
+        alpha=0.2,
+        color="xkcd:pastel orange",
     )
 
     ax_flux.axhline(
@@ -79,7 +86,6 @@ def plot_periodic(
         rf"Simulation with $L={const_L}, p\Delta t = {const_stepProb}, \rho={const_density:.2f}$"
     )
 
-    # ax_traj.scatter(position, timepoints, marker=">", c="k", s=4)
     ax_traj.scatter(df["position"], df["time"], marker=">", c="k", s=4)
 
     ax_traj.set_xlabel("Position")
@@ -95,10 +101,6 @@ def calc_flux_empirical(position_time_array):
     fluxmat[fluxmat < 0] = 0
     J = fluxmat.sum(axis=1)
 
-    # if bool_initrandom:  # Randomly populated means steady state more or less at once
-    #     Jmean = J.mean()
-    #     Jstd = J.std()
-    # else:  # only use last 50% to guess SS
     Jmean = J[-int(len(J) // 2) :].mean()
     Jstd = J[-int(len(J) // 2) :].std()
 
@@ -114,20 +116,23 @@ def simulate_periodic(
     bool_initrandom: bool,
 ):
     # Initialize the array for storing all positions over time
-
     position_time_array = np.zeros(
         shape=(const_nSteps, const_L)
     )  # now we access it as [time, position]
 
     # Populate the array at time 0
     if bool_initrandom:  # Randomly populate
-        position_time_array[0] = np.random.binomial(n=1, p=const_density, size=const_L)
+        position_time_array[0] = np.random.binomial(
+            n=1, p=const_density, size=const_L
+        )
     else:
         position_time_array[0][: int(const_L * const_density)] = 1
 
     for i in range(1, const_nSteps):
         N_curr = np.copy(position_time_array[i - 1])
-        move_inds = np.random.choice(np.arange(const_L), size=const_L, replace=True)
+        move_inds = np.random.choice(
+            np.arange(const_L), size=const_L, replace=True
+        )
 
         for j in move_inds:
 
@@ -144,7 +149,10 @@ def simulate_periodic(
     (timepoints, positions) = np.nonzero(position_time_array)
     fluxes_empirical = calc_flux_empirical(position_time_array)
 
-    return pd.DataFrame({"time": timepoints, "position": positions}), fluxes_empirical
+    return (
+        pd.DataFrame({"time": timepoints, "position": positions}),
+        fluxes_empirical,
+    )
 
 
 @st.cache(allow_output_mutation=True)
@@ -165,20 +173,28 @@ def simulate_open(
 
     # Populate the array at time 0
     if bool_initrandom:  # Randomly populate
-        position_time_array[0] = np.random.binomial(n=1, p=const_density, size=const_L)
+        position_time_array[0] = np.random.binomial(
+            n=1, p=const_density, size=const_L
+        )
     else:
         position_time_array[0][: int(const_L * const_density)] = 1
 
     for i in range(1, const_nSteps):
         N_curr = np.copy(position_time_array[i - 1])
-        move_inds = np.random.choice(np.arange(const_L), size=const_L, replace=True)
+        move_inds = np.random.choice(
+            np.arange(const_L), size=const_L, replace=True
+        )
 
         for j in move_inds:
             if j == const_L - 1:
                 if N_curr[j] == 1 and np.random.uniform() < const_exitProb:
                     N_curr[j] = 0
             else:
-                if j == 0 and N_curr[j] == 0 and np.random.uniform() < const_entryProb:
+                if (
+                    j == 0
+                    and N_curr[j] == 0
+                    and np.random.uniform() < const_entryProb
+                ):
                     N_curr[j] = 1
 
                 if (
@@ -194,7 +210,10 @@ def simulate_open(
     (timepoints, positions) = np.nonzero(position_time_array)
     fluxes_empirical = calc_flux_empirical(position_time_array)
 
-    return pd.DataFrame({"time": timepoints, "position": positions}), fluxes_empirical
+    return (
+        pd.DataFrame({"time": timepoints, "position": positions}),
+        fluxes_empirical,
+    )
 
 
 def write():
@@ -203,10 +222,15 @@ def write():
     st.write(TASEP_explanation_string)
     st.image("figs/TASEP_OBC.png", use_column_width=True, format="PNG")
 
-    # Simulation part
-
     # Setting parameters
-    const_nSteps = st.sidebar.slider("Number of steps to simulate", 10, 2000, 100, 10)
+    st.sidebar.subheader("Set Parameters")
+    bool_periodic_boundary = st.sidebar.checkbox(
+        "Periodic Boundary Condition?", True
+    )
+    bool_initrandom = st.sidebar.checkbox("Random initialization?", True)
+    const_nSteps = st.sidebar.slider(
+        "Number of steps to simulate", 10, 2000, 100, 10
+    )
     const_L = st.sidebar.slider("Number of slots", 5, 50, 10)
     const_density = st.sidebar.slider("Initial Density", 0.0, 0.95, 0.5, 0.05)
     const_stepProb = st.sidebar.slider("Step Probability", 0.05, 1.0, 0.5, 0.05)
@@ -216,8 +240,6 @@ def write():
     const_exitProb = st.sidebar.slider(
         "Exit Probability (beta)", 0.05, 0.95, 0.5, 0.05
     )
-    bool_periodic_boundary = st.sidebar.checkbox("Periodic Boundary Condition?", True)
-    bool_initrandom = st.sidebar.checkbox("Random initialization?", True)
 
     if st.button("Run simulation?"):
         if bool_periodic_boundary:
@@ -231,15 +253,6 @@ def write():
                 bool_initrandom=bool_initrandom,
             )
             J_theoretical = const_stepProb * const_density * (1 - const_density)
-
-            #
-            # fig, axes = plot_periodic(
-            #     fluxes=fluxes,
-            #     const_L=const_L,
-            #     const_stepProb=const_stepProb,
-            #     const_density=const_density,
-            #     df=df,
-            # )
 
         else:
             st.subheader("Simulation with Open Boundary Condition.")
@@ -255,15 +268,6 @@ def write():
             J_theoretical = (
                 const_stepProb * const_density * (1 - const_density)
             )  # TODO check this with exam answer
-
-
-            # fig, axes = plot_periodic(
-            #     fluxes=fluxes,
-            #     const_L=const_L,
-            #     const_stepProb=const_stepProb,
-            #     const_density=const_density,
-            #     df=df,
-            # )
 
         fluxes = J, Jmean, Jstd, J_theoretical
         df_plot = df.copy()
@@ -288,7 +292,8 @@ def write():
                 ),
                 alt.Y(field="car", type="ordinal"),
                 alt.Text("emoji:N"),
-            ).transform_calculate(emoji="{'car':'🚗'}[datum.img]")
+            )
+            .transform_calculate(emoji="{'car':'🚗'}[datum.img]")
             .add_selection(select_time)
             .transform_filter(select_time)
         )
