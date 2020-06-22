@@ -3,16 +3,14 @@ import streamlit as st
 import src.pages.about
 import src.pages.home
 import src.pages.tasep
-
-# import src.pages.nasch
+import src.pages.nasch
 import src.utils
-
 
 PAGES = {
     "Home": src.pages.home,
-    "About": src.pages.about,
     "TASEP": src.pages.tasep,
-    # "NaSch": src.pages.nasch,
+    "NaSch": src.pages.nasch,
+    "About": src.pages.about,
 }
 
 
